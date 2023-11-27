@@ -69,7 +69,6 @@ with col3:
     selected_track3, selected_track_title3 = trackSearch(3)
 
 # show selected music
-
 col4, col5, col6 = st.columns(3)
 
 with col4:
@@ -97,6 +96,17 @@ with col6:
 # step 2 : show travel spot using checkbox
 st.header("Step :two:")
 st.subheader(":round_pushpin: Choose your favorite spots")
+
+recommended_spots = ['민속자연사박물관', '해녀박물관', '서핑', '보롬왓', '서바이벌 게임']# 받아야하는 value
+travel_spots = []
+for i in recommended_spots:
+    checkbox = st.checkbox(i)
+    if checkbox == True:
+        travel_spots.append(i)
+    else:
+        if i in travel_spots:
+            travel_spots.remove(i)
+
 # bring travel spot selected 
 
 # step 3: draw map
@@ -118,10 +128,10 @@ def findShortestPath(dists, num_selected):
 st.header("Step :three:")
 st.subheader(":desert_island: Persona Route")
 
-m = folium.Map(location=[33.375000, 126.55000], min_zoom=9, zoom_start=10, min_lat= 33, max_lat = 33.7, min_lon = 126, max_lon = 127.1, max_bounds=True)
+m = folium.Map(location=[33.380000, 126.55000], min_zoom=9, zoom_start=10.5, min_lat= 33, max_lat = 33.7, min_lon = 126, max_lon = 127.1, max_bounds=True)
 points = pd.read_csv('coordinates.csv', header=0, index_col=0)
 
-selected_places = ['민속자연사박물관', '해녀박물관', '서핑', '보롬왓', '서바이벌 게임']
+selected_places = travel_spots
 num_selected = len(selected_places)
 selected_coords = []
 dists = [[99999]*num_selected for _ in range(num_selected)]
@@ -151,10 +161,10 @@ shortest_path_coords = []
 for i in shortest_path_i:
     shortest_path_coords.append(selected_coords[i])
 
+if not len(travel_spots) == 0:
+    folium.PolyLine(shortest_path_coords).add_to(m)
 
-folium.PolyLine(shortest_path_coords).add_to(m)
-
-st_data = st_folium(m, width=700, height=500)
+st_data = st_folium(m, width=1200, height=700)
 
 col1, col2, col3 = st.columns(3)
 with col1:
@@ -163,5 +173,3 @@ with col2:
     st.write(2)
 with col3:
     st.write(3)
-
-st.write(points)
