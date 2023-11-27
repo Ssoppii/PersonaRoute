@@ -25,75 +25,48 @@ st.header("Step :one:")
 st.subheader(":musical_score: Spotify 노래 검색")
 col1, col2, col3 = st.columns(3)
 
-# selected_track1 = ''
-# image1 = None
-# with col1: 
-#     prev_qry1 = ""
-#     search_query1 = st.text_input("노래 검색", key=3)
+## find music1 ------------------------------------------------------
+selected_track_title1 = ''
+selected_track1 = None
 
-#     selected_song1 = None  
+with col1: 
+    prev_qry1 = ""
+    search_query1 = st.text_input("노래 검색", key=4)
 
-#     if st.button("검색", key=1) or (prev_qry1 != search_query1):
-#         prev_qry1 = search_query1
-#         results = sp.search(q=search_query1, type='track')
-#         tracks = results['tracks']['items']
+    if st.button("검색", key=1) or (prev_qry1 != search_query1):
+        prev_qry1 = search_query1
+        results = sp.search(q=search_query1, type='track')
+        tracks = results['tracks']['items']
 
-#         container1 = st.empty()
+        container1 = st.empty()
 
-#         if tracks:
-#             container1.subheader("검색 결과")
-#             track_list = []
+        if tracks:
+            container1.subheader("검색 결과")
+            track_list = []
+            track_title_list = []
 
-#             for i, track in enumerate(tracks):
-#                 track_list.append(f"{track['name']} - {track['artists'][0]['name']}")
+            for i, track in enumerate(tracks):
+                track_list.append(track)
+                track_title_list.append(f"{i}. {track['name']} - {track['artists'][0]['name']}")
                 
-
-#                 # container1.write(f"**{track['name']}** by {track['artists'][0]['name']}")
+                if track['album']['images']:
+                     album_image_url = track['album']['images'][0]['url']
                 
-#                 # if track['album']['images']:
-#                 #     album_image_url = track['album']['images'][0]['url']
-#                 #     container1.image(album_image_url, caption='Album Image', width=100)
-                
-#                 # container1.write(f"Listen on Spotify: [Link]({track['external_urls']['spotify']})")
-                
-#                 # if st.button(f"{track['name']} - {track['artists'][0]['name']}"):
-#                 #     # Store selected song information
-#                 #     selected_song1 = {
-#                 #         'name': track['name'],
-#                 #         'artist': track['artists'][0]['name'],
-#                 #         'album_image_url': album_image_url,
-#                 #         'spotify_link': track['external_urls']['spotify']
-#                 #     }
-#                 #     ss1 = selected_song1
-                    
-#                 #     container1.empty()
-
-#                 # container1.write("---")
-
-#             selected_track1 = st.radio('Select', track_list)
-#             image1 = st.image(selected_song1['album_image_url'], caption='Album Image', width=300)
-
-#         else:
-#             st.warning("검색 결과가 없습니다.")
+            selected_track_title1 = st.radio('Select', track_title_list)
+            selected_track1 = track_list[int(selected_track_title1[0])]
             
+        else:
+            st.warning("검색 결과가 없습니다.")
 
-#     if selected_song1:
-#         st.subheader("Selected Song")
-#         st.write(f"**{selected_song1['name']}** by **{selected_song1['artist']}**")
-#         image1 = st.image(selected_song1['album_image_url'], caption='Album Image', width=300)
-#         st.write(f"Listen on Spotify: [Link]({selected_song1['spotify_link']})")
-# if ss1:
-#     st.write(f"Listen on Spotify: [Link]({ss1['spotify_link']})")
+
+## find music2 ------------------------------------------------------
 
 selected_track_title2 = ''
 selected_track2 = None
-image2 = None
-index2 = None
+
 with col2: 
     prev_qry2 = ""
-    search_query2 = st.text_input("노래 검색", key=4)
-
-    selected_song2 = None  
+    search_query2 = st.text_input("노래 검색", key=5)
 
     if st.button("검색", key=2) or (prev_qry2 != search_query2):
         prev_qry2 = search_query2
@@ -110,51 +83,80 @@ with col2:
             for i, track in enumerate(tracks):
                 track_list.append(track)
                 track_title_list.append(f"{i}. {track['name']} - {track['artists'][0]['name']}")
-                # container2.write(f"**{track['name']}** by {track['artists'][0]['name']}")
                 
                 if track['album']['images']:
                      album_image_url = track['album']['images'][0]['url']
-                     #container2.image(album_image_url, caption='Album Image', width=100)
                 
-                # container2.write(f"Listen on Spotify: [Link]({track['external_urls']['spotify']})")
-                
-                # if st.button(f"{track['name']} - {track['artists'][0]['name']}"):
-                #     # Store selected song information
-                #     selected_song2 = {
-                #         'name': track['name'],
-                #         'artist': track['artists'][0]['name'],
-                #         'album_image_url': album_image_url,
-                #         'spotify_link': track['external_urls']['spotify']
-                #     }
-                    
-                #     container2.empty()
-
-                # container2.write("---")
-
             selected_track_title2 = st.radio('Select', track_title_list)
             selected_track2 = track_list[int(selected_track_title2[0])]
-            # image2 = st.image(selected_track2['album_image_url'], caption='Album Image', width=300)
+            
         else:
             st.warning("검색 결과가 없습니다.")
-            
 
-    # if selected_song2:
-    #     st.subheader("Selected Song")
-    #     st.write(f"**{selected_song2['name']}** by **{selected_song2['artist']}**")
-    #     image2= st.image(selected_song2['album_image_url'], caption='Album Image', width=300)
-    #     st.write(f"Listen on Spotify: [Link]({selected_song2['spotify_link']})")
+## find music3 ------------------------------------------------------
+
+selected_track_title3 = ''
+selected_track3 = None
+
+with col3: 
+    prev_qry3 = ""
+    search_query3 = st.text_input("노래 검색", key=6)
+
+    if st.button("검색", key=3) or (prev_qry3 != search_query3):
+        prev_qry3 = search_query3
+        results = sp.search(q=search_query3, type='track')
+        tracks = results['tracks']['items']
+
+        container3 = st.empty()
+
+        if tracks:
+            container3.subheader("검색 결과")
+            track_list = []
+            track_title_list = []
+
+            for i, track in enumerate(tracks):
+                track_list.append(track)
+                track_title_list.append(f"{i}. {track['name']} - {track['artists'][0]['name']}")
+                
+                if track['album']['images']:
+                     album_image_url = track['album']['images'][0]['url']
+                
+            selected_track_title3 = st.radio('Select', track_title_list)
+            selected_track3 = track_list[int(selected_track_title3[0])]
+            
+        else:
+            st.warning("검색 결과가 없습니다.")
+
+
+# show selected music
 
 col4, col5, col6 = st.columns(3)
 
-# with col3:
-#     if selected_track1 != None:
-#         st.write(selected_track1)
+with col4:
+    if selected_track1 != None:
+        album_image_url = selected_track1['album']['images'][0]['url']
+        st.image(album_image_url, width=200)
+        st.write(selected_track_title1[2:])
+
 with col5:
     if selected_track2 != None:
-        # st.write(selected_track2)
         album_image_url = selected_track2['album']['images'][0]['url']
-        st.image(album_image_url, width=250)
+        st.image(album_image_url, width=200)
         st.write(selected_track_title2[2:])
+
+with col6:
+    if selected_track3 != None:
+        album_image_url = selected_track3['album']['images'][0]['url']
+        st.image(album_image_url, width=200)
+        st.write(selected_track_title3[2:])
+
+# bring selected music properties -> calculate mean
+
+# predict travel spot from mean
+
+# step 2 : show travel spot using checkbox
+
+# bring travel spot selected 
 
 # step 3: draw map
 def findShortestPath(dists, num_selected):
