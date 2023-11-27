@@ -10,6 +10,7 @@ from streamlit_folium import st_folium
 import xyzservices
 import xyzservices.providers as xyz
 from itertools import permutations
+import jeju_bigquery
 
 # change the page
 st.set_page_config(layout="wide")
@@ -26,22 +27,23 @@ sp = spotipy.Spotify(auth_manager=SpotifyClientCredentials(client_id=client_id, 
 # step 1: music finder
 st.header("Step :one:")
 st.subheader(":musical_score: Select your favorite 3 songs in spotify")
-def trackSearch(key):
-    selected_track_title1 = ''
-    selected_track1 = None
 
-    prev_qry1 = ""
-    search_query1 = st.text_input("노래 검색", key=key)
+def trackSearch(key, prev_qry):
+    selected_track_title = ''
+    selected_track = None
 
-    if st.button("검색", key=key+3) or (prev_qry1 != search_query1):
-        prev_qry1 = search_query1
-        results = sp.search(q=search_query1, type='track')
+    prev_qry = ""
+    search_query = st.text_input("노래 검색", key=key)
+
+    if st.button("검색", key=key+3) or (prev_qry != search_query):
+        prev_qry = search_query
+        results = sp.search(q=search_query, type='track')
         tracks = results['tracks']['items']
 
-        container1 = st.empty()
+        container = st.empty()
 
         if tracks:
-            container1.subheader("검색 결과")
+            container.subheader("검색 결과")
             track_list = []
             track_title_list = []
 
@@ -51,61 +53,115 @@ def trackSearch(key):
                 
                 if track['album']['images']:
                     album_image_url = track['album']['images'][0]['url']
-                
-            selected_track_title1 = st.radio('Select', track_title_list)
-            selected_track1 = track_list[int(selected_track_title1[0])]
+ 
+            selected_track_title = st.radio('Select', track_title_list)
+            selected_track = track_list[int(selected_track_title[0])]
             
         else:
             st.warning("검색 결과가 없습니다.")
 
-    return selected_track1, selected_track_title1
+    return selected_track, selected_track_title, prev_qry
 
 col1, col2, col3 = st.columns(3)
+
+st.session_state['prev_qry1'] = ""
+st.session_state['prev_qry2'] = ""
+st.session_state['prev_qry3'] = ""
+
 with col1:
-    selected_track1, selected_track_title1 = trackSearch(1)
+    prev_qry1 = st.session_state['prev_qry1']
+    selected_track1, selected_track_title1, prev_qry1 = trackSearch(1, prev_qry1)
+    st.session_state['prev_qry1'] = prev_qry1
 with col2:
-    selected_track2, selected_track_title2 = trackSearch(2)
+    prev_qry2 = st.session_state['prev_qry2']
+    selected_track2, selected_track_title2, prev_qry2 = trackSearch(2, prev_qry2)
+    st.session_state['prev_qry2'] = prev_qry2
 with col3:
-    selected_track3, selected_track_title3 = trackSearch(3)
+    prev_qry3 = st.session_state['prev_qry3']
+    selected_track3, selected_track_title3, prev_qry3 = trackSearch(3, prev_qry3)
+    st.session_state['prev_qry3'] = prev_qry3
 
 # show selected music
 col4, col5, col6 = st.columns(3)
+audio_features_list = []
 
 with col4:
     if selected_track1 != None:
         album_image_url = selected_track1['album']['images'][0]['url']
         st.image(album_image_url, width=500)
         st.write(selected_track_title1[2:])
+        track_id = sp.search(q=f"{selected_track1['name']} {selected_track1['artists'][0]['name']}", type='track')['tracks']['items'][0]['id']
+        audio_features = sp.audio_features([track_id])[0]
+        audio_features_list.append(list(audio_features.values()))
 
-with col5:
+with col5: 
     if selected_track2 != None:
         album_image_url = selected_track2['album']['images'][0]['url']
         st.image(album_image_url, width=500)
         st.write(selected_track_title2[2:])
+        track_id = sp.search(q=f"{selected_track2['name']} {selected_track2['artists'][0]['name']}", type='track')['tracks']['items'][0]['id']
+        audio_features = sp.audio_features([track_id])[0]
+        audio_features_list.append(list(audio_features.values()))
 
 with col6:
     if selected_track3 != None:
         album_image_url = selected_track3['album']['images'][0]['url']
         st.image(album_image_url, width=500)
         st.write(selected_track_title3[2:])
+        track_id = sp.search(q=f"{selected_track3['name']} {selected_track3['artists'][0]['name']}", type='track')['tracks']['items'][0]['id']
+        audio_features = sp.audio_features([track_id])[0]
+        audio_features_list.append(list(audio_features.values()))
+
+
+if not len(audio_features_list) == 0:
+    audio_features_list = np.array(audio_features_list)
+    audio_features_list = audio_features_list[:, :11]
+    audio_features_list = np.delete(audio_features_list, 2,1)
+    value_to_move = audio_features_list[:,6]
+    audio_features_list = np.delete(audio_features_list, 6,1)
+    audio_features_list = np.concatenate([audio_features_list, (value_to_move).reshape(-1,1)], axis = 1)
 
 # bring selected music properties -> calculate mean
+if 'recommended_spots' not in st.session_state:
+    recommended_spots = []
+    st.session_state['recommended_spots'] = []
 
+if st.button("Submit", key = 7):
+    audio_features_mean = audio_features_list.astype(float).mean(axis = 0)
+    audio_features_std = audio_features_list.astype(float).std(axis=0)
+    audio_features_merge = []
+    for i in range(10):
+        audio_features_merge.append(audio_features_mean[i])
+        audio_features_merge.append(audio_features_std[i])
+    # st.write(audio_features_merge)
+    
 # predict travel spot from mean
+    travel_score_df = jeju_bigquery.music_travel(audio_features_merge)
+    #st.write(travel_score_df)
+    recommended_spots = travel_score_df.iloc[:, 0]
+
+    if 'recommended_spots' in st.session_state:        
+        st.session_state['recommended_spots'] = recommended_spots
 
 # step 2 : show travel spot using checkbox
 st.header("Step :two:")
 st.subheader(":round_pushpin: Choose your favorite spots")
 
-recommended_spots = ['민속자연사박물관', '해녀박물관', '서핑', '보롬왓', '서바이벌 게임']# 받아야하는 value
 travel_spots = []
-for i in recommended_spots:
-    checkbox = st.checkbox(i)
-    if checkbox == True:
-        travel_spots.append(i)
-    else:
-        if i in travel_spots:
-            travel_spots.remove(i)
+if 'travel_spots' not in st.session_state:
+    st.session_state['travel_spots'] = []
+
+if len(st.session_state['recommended_spots']) != 0:
+    for i in st.session_state['recommended_spots']:
+        checkbox = st.checkbox(i)
+        if checkbox == True:
+            travel_spots.append(i)
+        else:
+            if i in travel_spots:
+                travel_spots.remove(i)
+
+    if 'travel_spots' in st.session_state:        
+        st.session_state['travel_spots'] = travel_spots
 
 # bring travel spot selected 
 
@@ -166,10 +222,10 @@ if not len(travel_spots) == 0:
 
 st_data = st_folium(m, width=1200, height=700)
 
-col1, col2, col3 = st.columns(3)
-with col1:
-    st.write(shortest_dist)
-with col2:
-    st.write(2)
-with col3:
-    st.write(3)
+# col1, col2, col3 = st.columns(3)
+# with col1:
+#     st.write(shortest_dist)
+# with col2:
+#     st.write(2)
+# with col3:
+#     st.write(3)
