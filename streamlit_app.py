@@ -213,9 +213,12 @@ for i in range(num_selected):
 shortest_dist, shortest_path_i = findShortestPath(dists, num_selected)
 
 shortest_path_coords = []
+shortest_path_places = []
 
 for i in shortest_path_i:
     shortest_path_coords.append(selected_coords[i])
+    shortest_path_places.append(selected_places[i])
+st.write(shortest_path_places)
 
 if not len(travel_spots) == 0:
     folium.PolyLine(shortest_path_coords).add_to(m)
