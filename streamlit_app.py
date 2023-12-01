@@ -3,6 +3,7 @@ import numpy as np
 import pandas as pd
 from spotipy.oauth2 import SpotifyClientCredentials
 import spotipy
+import psycopg2
 import sys
 import folium
 import base64
@@ -11,6 +12,7 @@ import xyzservices
 import xyzservices.providers as xyz
 from itertools import permutations
 import jeju_bigquery
+import neo4j_connection
 
 # change the page
 st.set_page_config(layout="wide")
@@ -185,7 +187,22 @@ st.header("Step :three:")
 st.subheader(":desert_island: Persona Route")
 
 m = folium.Map(location=[33.380000, 126.55000], min_zoom=9, zoom_start=10.5, min_lat= 33, max_lat = 33.7, min_lon = 126, max_lon = 127.1, max_bounds=True)
-points = pd.read_csv('coordinates.csv', header=0, index_col=0)
+# PostgreSQL---------------------------------------------------------
+connection_info = "host=147.47.200.145 dbname=teamdb10 user=team10 password=wannagohome10 port=34543"
+conn = psycopg2.connect(connection_info)
+
+try:
+    # 테이블을 Pandas.Dataframe으로 추출
+    points = pd.read_sql('SELECT * FROM coordinates',conn, index_col = 'place')
+
+except psycopg2.Error as e:
+    # 데이터베이스 에러 처리
+    print("DB error: ", e)
+
+finally:
+    # 데이터베이스 연결 해제 필수!!
+    conn.close()
+
 
 selected_places = travel_spots
 num_selected = len(selected_places)
@@ -194,6 +211,7 @@ dists = [[99999]*num_selected for _ in range(num_selected)]
 
 
 for place in selected_places:
+
     place_coord = [points.loc[place][0], points.loc[place][1]]
     
     # pic = base64.b64encode(open('smu.jpg','rb').read()).decode()
@@ -218,13 +236,22 @@ shortest_path_places = []
 for i in shortest_path_i:
     shortest_path_coords.append(selected_coords[i])
     shortest_path_places.append(selected_places[i])
-st.write(shortest_path_places)
+# st.write(shortest_path_places)
 
 if not len(travel_spots) == 0:
     folium.PolyLine(shortest_path_coords).add_to(m)
 
 st_data = st_folium(m, width=1200, height=700)
 
+if st.button("결정", key = 8):
+    if not len(shortest_path_places) == 0:
+        st.write(np.array(shortest_path_places))
+
+
+# neo4j connect
+cypher = 'MATCH (n) return n'
+st.write(neo4j_connection.response_query(cypher))  #현재는 데이터가 비어있어서 아무것도 출력되지 않음
+        
 # col1, col2, col3 = st.columns(3)
 # with col1:
 #     st.write(shortest_dist)
