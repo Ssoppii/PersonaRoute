@@ -1,199 +1,16 @@
-import streamlit as st
-import numpy as np
 import pandas as pd
-from spotipy.oauth2 import SpotifyClientCredentials
-import spotipy
+import numpy as np
 import psycopg2
-import sys
-import folium
-import base64
-from streamlit_folium import st_folium
-import xyzservices
-import xyzservices.providers as xyz
-from itertools import permutations
-import jeju_bigquery
-import neo4j_connection
+from sklearn.neural_network import MLPClassifier
+from sklearn.ensemble import RandomForestClassifier, RandomForestRegressor
 
-# change the page
-st.set_page_config(layout="wide")
-
-# title
-st.title(':musical_note: Persona Route - Jeju Island :airplane:')
-
-# spotify client id
-client_id = "262649bc897c4329b00de59ca0f039a5"
-client_secret = "32c47244efc24d9f9ba33ce18e40f0fd"
-
-sp = spotipy.Spotify(auth_manager=SpotifyClientCredentials(client_id=client_id, client_secret=client_secret))
-
-# step 1: music finder
-st.header("Step :one:")
-st.subheader(":musical_score: Select your favorite 3 songs in spotify")
-
-def trackSearch(key, prev_qry):
-    selected_track_title = ''
-    selected_track = None
-
-    prev_qry = ""
-    search_query = st.text_input("노래 검색", key=key)
-
-    if st.button("검색", key=key+3) or (prev_qry != search_query):
-        prev_qry = search_query
-        results = sp.search(q=search_query, type='track')
-        tracks = results['tracks']['items']
-
-        container = st.empty()
-
-        if tracks:
-            container.subheader("검색 결과")
-            track_list = []
-            track_title_list = []
-
-            for i, track in enumerate(tracks):
-                track_list.append(track)
-                track_title_list.append(f"{i}. {track['name']} - {track['artists'][0]['name']}")
-                
-                if track['album']['images']:
-                    album_image_url = track['album']['images'][0]['url']
- 
-            selected_track_title = st.radio('Select', track_title_list)
-            selected_track = track_list[int(selected_track_title[0])]
-            
-        else:
-            st.warning("검색 결과가 없습니다.")
-
-    return selected_track, selected_track_title, prev_qry
-
-col1, col2, col3 = st.columns(3)
-
-st.session_state['prev_qry1'] = ""
-st.session_state['prev_qry2'] = ""
-st.session_state['prev_qry3'] = ""
-
-with col1:
-    prev_qry1 = st.session_state['prev_qry1']
-    selected_track1, selected_track_title1, prev_qry1 = trackSearch(1, prev_qry1)
-    st.session_state['prev_qry1'] = prev_qry1
-with col2:
-    prev_qry2 = st.session_state['prev_qry2']
-    selected_track2, selected_track_title2, prev_qry2 = trackSearch(2, prev_qry2)
-    st.session_state['prev_qry2'] = prev_qry2
-with col3:
-    prev_qry3 = st.session_state['prev_qry3']
-    selected_track3, selected_track_title3, prev_qry3 = trackSearch(3, prev_qry3)
-    st.session_state['prev_qry3'] = prev_qry3
-
-# show selected music
-col4, col5, col6 = st.columns(3)
-audio_features_list = []
-
-with col4:
-    if selected_track1 != None:
-        album_image_url = selected_track1['album']['images'][0]['url']
-        st.image(album_image_url, width=500)
-        st.write(selected_track_title1[2:])
-        track_id = sp.search(q=f"{selected_track1['name']} {selected_track1['artists'][0]['name']}", type='track')['tracks']['items'][0]['id']
-        audio_features = sp.audio_features([track_id])[0]
-        audio_features_list.append(list(audio_features.values()))
-
-with col5: 
-    if selected_track2 != None:
-        album_image_url = selected_track2['album']['images'][0]['url']
-        st.image(album_image_url, width=500)
-        st.write(selected_track_title2[2:])
-        track_id = sp.search(q=f"{selected_track2['name']} {selected_track2['artists'][0]['name']}", type='track')['tracks']['items'][0]['id']
-        audio_features = sp.audio_features([track_id])[0]
-        audio_features_list.append(list(audio_features.values()))
-
-with col6:
-    if selected_track3 != None:
-        album_image_url = selected_track3['album']['images'][0]['url']
-        st.image(album_image_url, width=500)
-        st.write(selected_track_title3[2:])
-        track_id = sp.search(q=f"{selected_track3['name']} {selected_track3['artists'][0]['name']}", type='track')['tracks']['items'][0]['id']
-        audio_features = sp.audio_features([track_id])[0]
-        audio_features_list.append(list(audio_features.values()))
-
-
-if not len(audio_features_list) == 0:
-    audio_features_list = np.array(audio_features_list)
-    audio_features_list = audio_features_list[:, :11]
-    audio_features_list = np.delete(audio_features_list, 2,1)
-    value_to_move = audio_features_list[:,6]
-    audio_features_list = np.delete(audio_features_list, 6,1)
-    audio_features_list = np.concatenate([audio_features_list, (value_to_move).reshape(-1,1)], axis = 1)
-
-# bring selected music properties -> calculate mean
-if 'recommended_spots' not in st.session_state:
-    recommended_spots = []
-    st.session_state['recommended_spots'] = []
-
-if st.button("Submit", key = 7):
-    audio_features_mean = audio_features_list.astype(float).mean(axis = 0)
-    audio_features_std = audio_features_list.astype(float).std(axis=0)
-    audio_features_merge = []
-    for i in range(10):
-        audio_features_merge.append(audio_features_mean[i])
-        audio_features_merge.append(audio_features_std[i])
-    # st.write(audio_features_merge)
-    
-# predict travel spot from mean
-    travel_score_df = jeju_bigquery.music_travel(audio_features_merge)
-    #st.write(travel_score_df)
-    recommended_spots = travel_score_df.iloc[:, 0]
-
-    if 'recommended_spots' in st.session_state:        
-        st.session_state['recommended_spots'] = recommended_spots
-
-# step 2 : show travel spot using checkbox
-st.header("Step :two:")
-st.subheader(":round_pushpin: Choose your favorite spots")
-
-travel_spots = []
-if 'travel_spots' not in st.session_state:
-    st.session_state['travel_spots'] = []
-
-if len(st.session_state['recommended_spots']) != 0:
-    for i in st.session_state['recommended_spots']:
-        checkbox = st.checkbox(i)
-        if checkbox == True:
-            travel_spots.append(i)
-        else:
-            if i in travel_spots:
-                travel_spots.remove(i)
-
-    if 'travel_spots' in st.session_state:        
-        st.session_state['travel_spots'] = travel_spots
-
-# bring travel spot selected 
-
-# step 3: draw map
-def findShortestPath(dists, num_selected):
-    permutation_list = list(permutations(range(num_selected)))
-    shortest_dist = 99999
-    shortest_path = []
-
-    for permutation in permutation_list:
-        dist = 0
-        for i in range(num_selected - 1):
-            dist += dists[permutation[i]][permutation[i+1]]
-        if dist < shortest_dist:
-            shortest_dist = dist
-            shortest_path = permutation
-
-    return shortest_dist, shortest_path 
-
-st.header("Step :three:")
-st.subheader(":desert_island: Persona Route")
-
-m = folium.Map(location=[33.380000, 126.55000], min_zoom=9, zoom_start=10.5, min_lat= 33, max_lat = 33.7, min_lon = 126, max_lon = 127.1, max_bounds=True)
-# PostgreSQL---------------------------------------------------------
+# PostgreSQL
 connection_info = "host=147.47.200.145 dbname=teamdb10 user=team10 password=wannagohome10 port=34543"
 conn = psycopg2.connect(connection_info)
 
 try:
     # 테이블을 Pandas.Dataframe으로 추출
-    points = pd.read_sql('SELECT * FROM coordinates',conn, index_col = 'place')
+    mbti_df = pd.read_sql('SELECT * FROM mbti_playlist',conn)
 
 except psycopg2.Error as e:
     # 데이터베이스 에러 처리
@@ -204,58 +21,164 @@ finally:
     conn.close()
 
 
-selected_places = travel_spots
-num_selected = len(selected_places)
-selected_coords = []
-dists = [[99999]*num_selected for _ in range(num_selected)]
+# SQL을 사용하여 프로젝트에서 데이터를 조회 후 pandas dataframe에 입력
+
+mbti_np = mbti_df.to_numpy()
+
+# SUM
+IF_np = np.zeros((mbti_df.shape[1]-2,), dtype=float)
+EF_np = np.zeros((mbti_df.shape[1]-2,), dtype=float)
+IT_np = np.zeros((mbti_df.shape[1]-2,), dtype=float)
+ET_np = np.zeros((mbti_df.shape[1]-2,), dtype=float)
+total_np = np.zeros((mbti_df.shape[1]-2,), dtype=float)
+count = [0.0, 0.0, 0.0, 0.0, 0.0]
+
+IF_row_features = np.array([])
+EF_row_features = np.array([])
+IT_row_features = np.array([])
+ET_row_features = np.array([])
+
+IF_flag = True
+EF_flag = True
+IT_flag = True
+ET_flag = True
+
+mbti_np = mbti_df.to_numpy()
+
+for row in mbti_np:
+    row_features = row[2:].astype(dtype=np.float16)
+    if row[1] == "IF":
+        if IF_flag:
+            IF_row_features = row_features
+            IF_flag = False
+            continue
+        IF_np += row_features
+        IF_row_features = np.vstack((IF_row_features, np.expand_dims(row_features, axis=0)))
+        count[0] += 1
+    elif row[1] == "EF":
+        if EF_flag:
+            EF_row_features = row_features
+            EF_flag = False
+            continue
+        EF_np += row_features
+        EF_row_features = np.vstack((EF_row_features, np.expand_dims(row_features, axis=0)))
+        count[1] += 1
+    elif row[1] == "IT":
+        if IT_flag:
+            IT_row_features = row_features
+            IT_flag = False
+            continue
+        IT_np += row_features
+        IT_row_features = np.vstack((IT_row_features, np.expand_dims(row_features, axis=0)))
+        count[2] += 1
+    elif row[1] == "ET":
+        if ET_flag:
+            ET_row_features = row_features
+            ET_flag = False
+            continue
+        ET_np += row_features
+        ET_row_features = np.vstack((ET_row_features, np.expand_dims(row_features, axis=0)))
+        count[3] += 1
+    else:
+        print("Something wrong")
+    total_np += row_features
+    count[4] += 1
+
+IF_np /= count[0]
+EF_np /= count[1]
+IT_np /= count[2]
+ET_np /= count[3]
+total_np /= count[4]
+
+IF_std = np.zeros((mbti_df.shape[1]-2,), dtype=float)
+EF_std = np.zeros((mbti_df.shape[1]-2,), dtype=float)
+IT_std = np.zeros((mbti_df.shape[1]-2,), dtype=float)
+ET_std = np.zeros((mbti_df.shape[1]-2,), dtype=float)
+total_std = np.zeros((mbti_df.shape[1]-2,), dtype=float)
+
+for row in mbti_np:
+    row_features = row[2:].astype(dtype=np.float16)
+    if row[1] == "IF":
+        IF_std += (row_features - IF_np) ** 2
+    elif row[1] == "EF" :
+        EF_std += (row_features - EF_np) ** 2
+    elif row[1] == "IT" :
+        IT_std += (row_features - IT_np) ** 2
+    elif row[1] == "ET":
+        ET_std += (row_features - ET_np) ** 2
+    else:
+        print("Something wrong")
+    total_std += (row_features - total_np) ** 2
+
+IF_std = np.sqrt((IF_std) / count[0])
+EF_std = np.sqrt((EF_std) / count[1])
+IT_std = np.sqrt((IT_std) / count[2])
+ET_std = np.sqrt((ET_std) / count[3])
+total_std = np.sqrt((total_std) / count[4])
+
+IF_normalized = (IF_row_features - IF_np) / IF_std
+EF_normalized = (EF_row_features - EF_np) / EF_std
+IT_normalized = (IT_row_features - IT_np) / IT_std
+ET_normalized = (ET_row_features - ET_np) / ET_std
 
 
-for place in selected_places:
+# Weighting
+# PostgreSQL
+connection_info = "host=147.47.200.145 dbname=teamdb10 user=team10 password=wannagohome10 port=34543"
+conn = psycopg2.connect(connection_info)
 
-    place_coord = [points.loc[place][0], points.loc[place][1]]
-    
-    # pic = base64.b64encode(open('smu.jpg','rb').read()).decode()
-    # image_src = 'https://lh7-us.googleusercontent.com/acGpfQjQDFnOdZ_EJgHQQRrfQSBz8CYDfxc9jJbvwbw1GWg0189XiJ6Lb2kKuu_hvFXu1rZDOePSK668vRQ_LiDajAgRn61U4fgPbQEVZO9yckX0WYEVihqyCR86oNilPaZt-NEiDoCff4geZpc40wXR_FREew'
-    # image_tag = '<img src="' + image_src +'">'.format(pic)
-    # iframe = folium.IFrame(image_tag, width=300, height=300)
-    # popup = folium.Popup(iframe, max_width=650)
-    
-    folium.Marker(place_coord, tooltip=place, icon=folium.Icon(color='beige')).add_to(m)
-    selected_coords.append(place_coord)
+try:
+    # 테이블을 Pandas.Dataframe으로 추출
+    travel_df = pd.read_sql('SELECT * FROM mbti_travel',conn)
 
-for i in range(num_selected):
-    for j in range(i):
-        dists[i][j] = ((selected_coords[i][0] - selected_coords[j][0]) ** 2 + (selected_coords[i][1] - selected_coords[j][1]) ** 2) ** 0.5
-        dists[j][i] = dists[i][j]
+except psycopg2.Error as e:
+    # 데이터베이스 에러 처리
+    print("DB error: ", e)
 
-shortest_dist, shortest_path_i = findShortestPath(dists, num_selected)
-
-shortest_path_coords = []
-shortest_path_places = []
-
-for i in shortest_path_i:
-    shortest_path_coords.append(selected_coords[i])
-    shortest_path_places.append(selected_places[i])
-# st.write(shortest_path_places)
-
-if not len(travel_spots) == 0:
-    folium.PolyLine(shortest_path_coords).add_to(m)
-
-st_data = st_folium(m, width=1200, height=700)
-
-if st.button("결정", key = 8):
-    if not len(shortest_path_places) == 0:
-        st.write(np.array(shortest_path_places))
+finally:
+    # 데이터베이스 연결 해제 필수!!
+    conn.close()
 
 
-# neo4j connect
-cypher = 'MATCH (n) return n'
-st.write(neo4j_connection.response_query(cypher))  #현재는 데이터가 비어있어서 아무것도 출력되지 않음
-        
-# col1, col2, col3 = st.columns(3)
-# with col1:
-#     st.write(shortest_dist)
-# with col2:
-#     st.write(2)
-# with col3:
-#     st.write(3)
+# travel_df = pd.read_csv('travel_mbti_et_1.csv', header=0)
+
+normalized_list = [np.mean(IF_normalized, axis=0), np.mean(IT_normalized, axis=0), np.mean(EF_normalized, axis=0), np.mean(ET_normalized, axis=0)]
+lst = []
+
+for i in range(len(normalized_list)):
+    for j in range(3-i):
+        lst.append(normalized_list[i] - normalized_list[3-j])
+
+
+# Function (Music -> Travel)
+def music_travel(auser_musicstat, normalized_list = normalized_list, travel_df = travel_df):
+  user_musicstat = auser_musicstat
+  user_musicstat_normalized = (user_musicstat - total_np) / total_std
+  user_dist = np.zeros((4,)) # 4 distances
+  user_dist_weight = np.zeros((4,)) # 4 weights
+
+  sigma = 100
+
+  for i in range(len(normalized_list)):
+      user_dist[i] = np.sum(user_musicstat_normalized - normalized_list[i])
+
+      user_dist_weight[i] = 1 / (user_dist[i] ** 2)
+
+  travel_np = travel_df.iloc[:52, 1:].to_numpy(dtype = np.float16) # 52 X 4
+  travel_score = np.sum(np.log(travel_np+np.random.rand(52, 4)*4.5) * np.where(user_dist_weight > 1, user_dist_weight**2*100, np.sqrt(user_dist_weight)*100), axis=1) # 52 X 1
+  travel_score_dict = {}
+
+  for i in range(travel_score.shape[0]):
+      place = travel_df.iloc[i, 0]
+      travel_score_dict[place] = travel_score[i]
+
+  sorted_dict = sorted(travel_score_dict.items(), key = lambda item: item[1], reverse=True)
+  travel_score_df = pd.DataFrame(sorted_dict)[:10]
+
+  return travel_score_df
+
+
+# input data
+user_musicstat = np.array((0.59402,0.103220883,0.62362,0.169359886,-6.997,2.372522183,0.5,0.505076272,0.061666,0.056152971,0.142286789,0.199589234,0.160918,0.106532647,0.460604,0.195853411,117.99478,30.08924373,0.014886688,0.049698107))
+travel_score_df = music_travel(user_musicstat)
+print(travel_score_df)
